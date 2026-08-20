@@ -60,7 +60,7 @@ Paths in `SKILL.md` describe the author's local layout — adapt them to your ow
 
 ## The example
 
-[`example/AGENTS.public.md`](example/AGENTS.public.md) is a real governed global spec, sanitized for publication. Note the shape: a routing table for on-demand rules up top, seven compact behavioral sections, emphasis words spent only where they carry weight.
+[`example/AGENTS.public.md`](example/AGENTS.public.md) is a real governed global spec, sanitized for publication. Note the shape: a routing table up top pointing to external `example/rules/*.md` files — on-demand rules stay out of the AGENTS.md file entirely, because the runtime loads it in full on every session; they are only read when the routing table fires. Emphasis words are spent only where they carry weight.
 
 ---
 
@@ -75,4 +75,4 @@ Paths in `SKILL.md` describe the author's local layout — adapt them to your ow
 - **分片 + 路由架构**：常驻分片与按需规则分离，低频规则彻底移出常驻上下文
 - **手术级同步**：强制 dry-run 先行、写前备份、外来托管块逐字节保留、写后哈希校验
 
-`example/AGENTS.public.md` 是治理后的真实全局规范（脱敏公开版）。`SKILL.md` 中的路径是作者本机布局，按需改成你自己的。
+`example/AGENTS.public.md` 是治理后的真实全局规范（脱敏公开版）：顶部路由表指向外部 `example/rules/*.md` 独立文件——按需规则完全不进 AGENTS.md 主文件（runtime 每次会话全量加载它），仅在路由命中时才读取。`SKILL.md` 中的路径是作者本机布局，按需改成你自己的。
