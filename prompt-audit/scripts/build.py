@@ -40,24 +40,25 @@ def read_file(path):
 
 def build_route_table(manifest):
     """规则索引：从 manifest rules 段生成。
-    面向 agent 的表格只说「在什么情况下必读什么」——
-    不写治理者元话语（按需/路由/不读的后果）。"""
+    两级强度：默认给内容/作用描述供模型自主判断，
+    关键场景用「何时必读」列硬约束兑底。"""
     rules = manifest.get("rules") or {}
     rows = []
     for name, meta in rules.items():
+        desc = str(meta.get("desc", "")).strip()
         route = str(meta.get("route", "")).strip()
         location = "`~/.agent/rules/%s.md`" % name
-        rows.append((route, location))
+        rows.append((location, desc, route))
     if not rows:
         return ""
     lines = [
         "## 规则索引",
         "",
-        "| 在如下情况下必读 | 文档路径 |",
-        "|---|---|",
+        "| 文档 | 内容与作用 | 何时必读 |",
+        "|---|---|---|",
     ]
-    for route, location in rows:
-        lines.append(f"| {route} | {location} |")
+    for location, desc, route in rows:
+        lines.append(f"| {location} | {desc} | {route} |")
     return "\n".join(lines)
 
 
