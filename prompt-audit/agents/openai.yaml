@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prompt Audit"
+  short_description: "审计、体检、构建、同步 AI Agent 全局提示词（AGENTS.md）"
+  default_prompt: "帮我整理全局提示词：先体检现状，再审计分片，最后构建并同步"

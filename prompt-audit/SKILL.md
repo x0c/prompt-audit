@@ -1,0 +1,110 @@
+---
+name: prompt-audit
+description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：审计、体检、构建、同步。用户说「整理全局提示词」「审计提示词」「提示词体检」「同步提示词到各工具」，或发现全局 AGENTS.md 混乱、膨胀、需要治理时使用。覆盖拆条分类、删留判据、lint 体检、分片构建、写回真身全流程。
+---
+
+# 全局提示词治理（prompt-audit）
+
+## 总览：管理对象与布局
+
+本 skill 管理一份分片化的全局提示词体系：
+
+| 位置 | 角色 |
+|---|---|
+| `~/.agent/src/` | 常驻注入区分片（每次会话都生效的规则） |
+| `~/.agent/rules/` | 按需规则（低频规则，靠路由表按需加载，不常驻上下文） |
+| `~/prompt-workspace/manifest.yaml` | 分片元数据：rules 的 route/consequence（visibility/redact 是发布任务的登记，与治理无关） |
+| `~/prompt-workspace/original/AGENTS.md` | 治理前原件（只读存档，对照用） |
+| `~/prompt-workspace/dist/` | build 产物：AGENTS.full.md（完整版；AGENTS.public.md 由发布脚本另行生成，不属本 skill） |
+| `~/.config/agentsync/AGENTS.md` | 真身文件，各 runtime（pi/claude/codex/opencode）的 AGENTS.md 全是它的软链 |
+
+分片排序规则：**按 manifest `src:` 段的键序拼接**（YAML 映射保序），不依赖文件名、不需要 order 字段。改分片顺序就改 manifest 里的书写顺序。
+
+## 体检（lint）
+
+改完分片后、或怀疑提示词膨胀时，运行：
+
+```bash
+~/.config/agentsync/skills/prompt-audit/scripts/lint.py [目标]
+```
+
+目标可以是任意提示词文件，或 `~/.agent/src/` 目录（按文件名序拼接后体检），默认真身。输出六项指标，退出码 0=健康、1=有告警：
+
+1. **长度 / 估算 token**：超 3000 token 告警（prompt bloat 研究的经验阈值——远低于上下文窗口时推理即退化）
+2. **规则条数**：超 50 条告警（IFScale 指令密度研究：指令越多遵循率越低，且模型偏向更早出现的指令）
+3. **重复检测**：行级重复（≥10 字整行出现 ≥2 次）+ 跨节重复短语
+4. **强调词密度**：「必须/一律/禁止/务必/不得」总次数与次/千字密度，超 1 次/百字告警（经验规则：强调通胀稀释真约束）
+5. **中段埋雷**：三等分后「必须/禁止」密度最高段落在中段则告警（Lost in the Middle：关键信息居中注意力最弱）→ 把硬约束挪到头部或尾部
+6. **隐私词扫描**：报告私有词出现位置（词表优先读 `~/prompt-workspace/privacy-words.txt`，缺省用脚本内置示例表；真实词表放个人工作区，不随 skill 分发）——治理场景用来确认私有词登记完整；发布场景的隐私复检另有流程
+
+## 审计流程（方法论）
+
+对一份混乱的提示词做治理时，按以下流程拆条审计（完整先例见 `~/prompt-workspace/analysis/AUDIT.md`）：
+
+1. **拆条**：按 `## ` 标题切分到节，节内再按列表项/句子拆到「一条规则」粒度，逐条编号。
+2. **四分类**，每条给出判定和一句理由：
+   - **保留**：有效且独有，表述冗长可压缩
+   - **合并**：与别处内容重叠，合并后归一处（记录合并目标）
+   - **删除**：死规则（工具已下线、一次性踩坑记录）、私人书签混入行为规范、与更优机制重复
+   - **存疑**：需用户拍板（低频规则占高频位置、依赖未验证、归属不明）
+
+   对拟删除/拟合的条目，先过**三问判据**（经对照实验验证：人工审计的误删误留均被它纠正）——
+   - **行为判据**：这条规则会改变 agent 的实际行为吗（拦住/触发某个动作）？
+   - **触发判据**：有可识别的触发场景吗？
+   - **失真判据**：删掉它，某个可观察行为会退化吗？若行为由另一条规则覆盖，须确认那条规则长期稳定（外来托管块可能被整块替换，不算稳定覆盖）。
+   三问全否 → 可删；任一为是 → 不可删。注意粒度：解释性从句、踩坑例子、历史事实先从本体剥离（从句级垃圾走「精简」通道），三问按规则本体作答；三判据只裁决删 vs 留，**不裁决常驻 vs 按需路由**（后者靠触发频率判断，是 token 收益的另一大半）。
+3. **输出决策清单给用户拍板**，格式：按存疑项编号列出，每项给出现状、疑点、2–3 个选项（标注推荐项及理由）。存疑项不擅自处理；用户拍板后记入 `~/prompt-workspace/analysis/DECISIONS.md`。
+4. 拍板后：把保留/合并的规则改写成 `~/.agent/src/` 分片（低频规则进 `~/.agent/rules/`），在 manifest 登记元数据，再走下面的构建与同步。
+
+注：对外发布公开版是独立任务（脚本 `~/prompt-workspace/scripts/make_public.py`，含隐私词表与脱敏），不属于本 skill。
+
+## 改写与压缩（拍板后执行）
+
+把审计结论落到分片时的改写纪律：
+
+- **一行一条行为约束**：每条规则压到单行；删解释性从句、删「（依据……）」类自我说明、删同义反复。行为约束的语义、触发条件、边界一个字不能丢。
+- **短规则合并**：不足 6 行的分片不值得独立成文件——合并进 `basics.md`（`# 基础规范` + 每规则一个 `###` 小节）。合并后删原分片、同步改 manifest。合并分片的 visibility 取所含规则最严级，redact 指令合并罗列。
+- **功能性内容不可压**：书签导航的「必读+后果」、枚举式清单（多渠道、豁免条款）是功能设计不是冗余，压缩即丢功能。
+- **孤立锚点即垃圾**：形如 `<!-- xxx:begin/end -->` 的工具维护锚点，若全机无工具声明管理它，物理删除；有主锚点按 sync 一节的外来块规则处理。
+- **产物零噪音**：生成的提示词文本里不写自我解释——表格列名已说明的不再加导语、不加「由 XX 生成」类签名注释、不留 TODO 给人工善后、不重复正文已有信息。每个字符都是给模型读的指令，不是给人看的文档。
+- **语义自检**：每条合并/压缩过的规则，逐条对照改写前后确认约束无损，产出对照表供用户复查。
+- 改完必跑：`build.py` 重建 → `lint.py ~/.agent/src/` 复检，指标应优于改前。
+
+## 构建（build）
+
+分片或 manifest 改动后，重新生成产物：
+
+```bash
+~/.config/agentsync/skills/prompt-audit/scripts/build.py
+```
+
+- **完整版** `dist/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「按需规则路由表」（从 manifest rules 段的 route/consequence 生成，指向 `~/.agent/rules/` 文件）
+
+## 同步（sync）
+
+build 通过后，把完整版写回真身：
+
+```bash
+~/.config/agentsync/skills/prompt-audit/scripts/sync.py --dry-run   # 必须先预览
+~/.config/agentsync/skills/prompt-audit/scripts/sync.py --confirm   # 确认 diff 后才真写
+```
+
+不加参数会报错强制 dry-run 先行。安全约束（机制依据见 `~/prompt-workspace/analysis/INJECTION_MECHANISM.md`）：
+
+- 只写真身 `~/.config/agentsync/AGENTS.md`，软链自动生效
+- 写前强制备份到 `~/.config/agentsync/backups/AGENTS.md.<时间戳>`
+- 两个外来块从现有真身**原样搬运、逐字节保留**：「项目文档管理」节（doc-init/doc-compact 的脚本按版本号整块替换管理）和 `<!-- agentsync:begin mcp -->` 块（agentsync 工具按固定模板 upsert）
+- 两个外来块之间插入隔断标题 `## 附：外部托管区块`：doc-governance 升级时删除边界是「下一个 `## ` 标题」，没有隔断会把紧随其后的 agentsync begin 标记一起吞掉
+- 原子写入（临时文件 + mv），写后逐字节校验（外来块保留 + 全文与预期一致），校验失败退出码 1 并提示备份位置
+- 脚本绝不主动执行 insert_doc_governance.py，绝不修改外来块内容
+
+## 完整工作流
+
+一次完整治理的步骤串联：
+
+1. `lint.py <现状文件>`：对现有提示词体检，确认问题（token 超标/重复/强调通胀）
+2. 审计流程：拆条 → 四分类（含三问删留判据）→ 输出决策清单给用户拍板
+3. 按拍板结果改 `~/.agent/src/` 分片和 `~/.agent/rules/` 按需规则，登记 manifest
+4. `build.py`：生成 dist 两产物
+5. `lint.py ~/.agent/src/`：对新分片复检，指标应显著优于原件
+6. `sync.py --dry-run` 预览 → 用户确认 → `sync.py --confirm` 写回真身
