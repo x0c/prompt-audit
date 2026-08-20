@@ -39,29 +39,30 @@ def read_file(path):
 
 
 def build_route_table(manifest):
-    """按需规则路由表：从 manifest rules 段的 route/consequence 生成。"""
+    """规则索引：从 manifest rules 段生成。
+    面向 agent 的表格只说「在什么情况下必读什么」——
+    不写治理者元话语（按需/路由/不读的后果）。"""
     rules = manifest.get("rules") or {}
     rows = []
     for name, meta in rules.items():
         route = str(meta.get("route", "")).strip()
-        consequence = str(meta.get("consequence", "")).strip()
         location = "`~/.agent/rules/%s.md`" % name
-        rows.append((route, consequence, location))
+        rows.append((route, location))
     if not rows:
         return ""
     lines = [
-        "## 按需规则路由表",
+        "## 规则索引",
         "",
-        "| 何时加载 | 不读的后果 | 内容位置 |",
-        "|---|---|---|",
+        "| 在如下情况下必读 | 文档路径 |",
+        "|---|---|",
     ]
-    for route, consequence, location in rows:
-        lines.append(f"| {route} | {consequence} | {location} |")
+    for route, location in rows:
+        lines.append(f"| {route} | {location} |")
     return "\n".join(lines)
 
 
 def build_full(src_dir, manifest):
-    """完整版：路由表 + 全部 src 分片（按 manifest src 段键序）。"""
+    """完整版：规则索引 + 全部 src 分片（按 manifest src 段键序）。"""
     parts = ["# 全局 Agent 规范"]
     table = build_route_table(manifest)
     if table:

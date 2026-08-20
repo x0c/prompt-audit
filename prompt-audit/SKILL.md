@@ -12,7 +12,7 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 | 位置 | 角色 |
 |---|---|
 | `~/.agent/src/` | 常驻注入区分片（每次会话都生效的规则） |
-| `~/.agent/rules/` | 按需规则（低频规则，靠路由表按需加载，不常驻上下文） |
+| `~/.agent/rules/` | 按需规则（低频规则，靠规则索引按需加载，不常驻上下文） |
 | `~/prompt-workspace/manifest.yaml` | 分片元数据：rules 的 route/consequence（visibility/redact 是发布任务的登记，与治理无关） |
 | `~/prompt-workspace/original/AGENTS.md` | 治理前原件（只读存档，对照用） |
 | `~/prompt-workspace/dist/` | build 产物：AGENTS.full.md（完整版；AGENTS.public.md 由发布脚本另行生成，不属本 skill） |
@@ -36,6 +36,8 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 4. **强调词密度**：「必须/一律/禁止/务必/不得」总次数与次/千字密度，超 1 次/百字告警（经验规则：强调通胀稀释真约束）
 5. **中段埋雷**：三等分后「必须/禁止」密度最高段落在中段则告警（Lost in the Middle：关键信息居中注意力最弱）→ 把硬约束挪到头部或尾部
 6. **隐私词扫描**：报告私有词出现位置（词表优先读 `~/prompt-workspace/privacy-words.txt`，缺省用脚本内置示例表；真实词表放个人工作区，不随 skill 分发）——治理场景用来确认私有词登记完整；发布场景的隐私复检另有流程
+
+体检告警的处置纪律：告警必须处置，或给出不适用的结构性理由（如「外来块不归本次治理管辖」）；不许用「固有形态 / 设计如此」类叙述打发——曾把按需规则误内联进公开版，lint 的规则数超标告警被「公开版固有形态」解释糊弄过去，实为真报警。
 
 ## 审计流程（方法论）
 
@@ -67,6 +69,8 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 - **功能性内容不可压**：书签导航的「必读+后果」、枚举式清单（多渠道、豁免条款）是功能设计不是冗余，压缩即丢功能。
 - **孤立锚点即垃圾**：形如 `<!-- xxx:begin/end -->` 的工具维护锚点，若全机无工具声明管理它，物理删除；有主锚点按 sync 一节的外来块规则处理。
 - **产物零噪音**：生成的提示词文本里不写自我解释——表格列名已说明的不再加导语、不加「由 XX 生成」类签名注释、不留 TODO 给人工善后、不重复正文已有信息。每个字符都是给模型读的指令，不是给人看的文档。
+- **元话语不入产物**：治理者视角的术语和论证（「按需」「路由」「不读的后果」）不写进面向 agent 的文本——agent 只需要「在什么情况下必读什么」，强度信号放表头（如「在如下情况下必读」）即可，不设后果列。
+- **产物忠实部署形态**：公开版/示例等对外产物不得为「自包含」改变架构——按需规则绝不内联进会被 runtime 全量加载的主文件，否则读者照学错误形态，按需加载就名存实亡。
 - **语义自检**：每条合并/压缩过的规则，逐条对照改写前后确认约束无损，产出对照表供用户复查。
 - 改完必跑：`build.py` 重建 → `lint.py ~/.agent/src/` 复检，指标应优于改前。
 
@@ -78,7 +82,7 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 ~/.config/agentsync/skills/prompt-audit/scripts/build.py
 ```
 
-- **完整版** `dist/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「按需规则路由表」（从 manifest rules 段的 route/consequence 生成，指向 `~/.agent/rules/` 文件）
+- **完整版** `dist/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「规则索引」（从 manifest rules 段的 route 生成，指向 `~/.agent/rules/` 文件）
 
 ## 同步（sync）
 
