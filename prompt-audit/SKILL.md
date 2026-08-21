@@ -16,7 +16,7 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 |---|---|
 | `src_dir` | 常驻注入区分片（每次会话都生效的规则） |
 | `rules_dir` | 按需规则（低频规则，靠规则索引按需加载，不常驻上下文） |
-| `manifest` | 分片元数据：rules 的 desc/route（visibility/redact 是发布任务的登记，与治理无关） |
+| `manifest` | 分片元数据：rules 的 desc（描述=内容+适用场景，进规则索引；consequence 是维护备注不进产物；visibility/redact 是发布任务的登记，与治理无关） |
 | `dist_dir` | build 产物：AGENTS.full.md 完整版（AGENTS.public.md 由发布脚本另行生成，不属本 skill） |
 | `true_file` / `backup_dir` | 真身文件（各 runtime 的 AGENTS.md 软链于此）与写前备份目录 |
 | `privacy_words` | 隐私词表文件（缺省用 lint 内置示例表） |
@@ -87,7 +87,7 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 <本skill目录>/scripts/build.py
 ```
 
-- **完整版** `<dist_dir>/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「规则索引」（从 manifest rules 段的 route 生成，指向配置 `rules_dir` 下的文件）
+- **完整版** `<dist_dir>/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「规则索引」两列表（文档 + 描述，从 manifest rules 段的 desc 生成，指向配置 `rules_dir` 下的文件）
 
 ## 同步（sync）
 

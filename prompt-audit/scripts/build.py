@@ -46,26 +46,28 @@ def read_file(path):
 
 
 def build_route_table(manifest):
-    """规则索引：从 manifest rules 段生成。
-    两级强度：默认给内容/作用描述供模型自主判断，
-    关键场景用「何时必读」列硬约束兑底。"""
+    """规则索引：从 manifest rules 段生成两列表（文档 + 描述）。
+
+    描述合并内容与适用场景；manifest 仍带 route 时自动并进描述（兼容旧格式）。"""
     rules = manifest.get("rules") or {}
     rows = []
     for name, meta in rules.items():
         desc = str(meta.get("desc", "")).strip()
         route = str(meta.get("route", "")).strip()
+        if route:
+            desc = (desc + "。" + route).rstrip("。") if desc else route
         location = "`%s/%s.md`" % (RULES_DIR_DISPLAY, name)
-        rows.append((location, desc, route))
+        rows.append((location, desc))
     if not rows:
         return ""
     lines = [
         "## 规则索引",
         "",
-        "| 文档 | 内容与作用 | 何时必读 |",
-        "|---|---|---|",
+        "| 文档 | 描述 |",
+        "|---|---|",
     ]
-    for location, desc, route in rows:
-        lines.append(f"| {location} | {desc} | {route} |")
+    for location, desc in rows:
+        lines.append(f"| {location} | {desc} |")
     return "\n".join(lines)
 
 
