@@ -9,12 +9,12 @@
 
 ## 硬约束
 
-* 脚本零硬编码路径：路径与外来块定义一律走部署配置（scripts/config.py 加载，模板 config.example.yaml），新增功能不得引入本机专属路径。
+* 脚本零硬编码路径：路径与外来块定义只从部署配置读取（scripts/config.py 加载，模板 config.example.yaml），不引入任何本机专属路径。
 * 产物零噪音：面向 agent 的文本（SKILL.md、模板、示例）不写元话语与「不读的后果」，导航用两级强度（内容描述 + 关键场景「必读」）。
-* 改脚本后必跑验证：`build.py` 产物须与改前逐字节一致（行为不变时）、`sync.py --dry-run` 预览、`lint.py` 退出码。不做运行时验证不得报「完成」。
-* 公开产物发布前必跑隐私词扫描（`lint.py` 目标文件），必须零命中；个人隐私词表永不进本仓库。
-* commit 身份双字段均为 x0c（`GIT_COMMITTER_NAME`/`GIT_COMMITTER_EMAIL` + `--author`，x0c@users.noreply.github.com），不得出现真实姓名邮箱。
-* 代码注释、日志输出、错误信息一律中文。
+* 改脚本后必跑验证：`build.py` 产物须与改前逐字节一致（行为不变时）、`sync.py --dry-run` 预览、`lint.py` 退出码。先验证再报「完成」。
+* 公开产物发布前必跑隐私词扫描（`lint.py` 目标文件），须零命中；个人隐私词表永不进本仓库。
+* commit 身份双字段均为 x0c（`GIT_COMMITTER_NAME`/`GIT_COMMITTER_EMAIL` + `--author`，x0c@users.noreply.github.com），真实姓名邮箱不进提交历史。
+* 代码注释、日志输出、错误信息用中文。
 
 ## 文档导航
 
