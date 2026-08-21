@@ -3,15 +3,16 @@
 """构建脚本：分片 + manifest → 完整版产物。
 
 用法：
-    prompt-audit/scripts/build.py                     # 全部用默认路径
-    build.py --src ~/.agent/src --manifest ~/prompt-workspace/manifest.yaml --dist ~/prompt-workspace/dist
+    build.py                # 路径取部署配置（~/.config/prompt-audit/config.yaml）
+    build.py --src ... --manifest ... --dist ...   # 参数覆盖配置
+无配置时用中性默认值：./src、./manifest.yaml、./dist。
 
 分片排序规则（已定案）：按 manifest `src:` 段的键序拼接。
 YAML 映射在 Python 3.7+ 保插入序，yaml.safe_load 返回的 dict 即文件书写序，
 不依赖文件名排序，也不需要给 manifest 加 order 字段。
 
 产物：
-    dist/AGENTS.full.md    完整版：全部 src 分片 + 头部「按需规则路由表」
+    <dist_dir>/AGENTS.full.md    完整版：全部 src 分片 + 头部「规则索引」
 退出码：0=正常；1=出错。
 """
 
@@ -27,9 +28,15 @@ except ImportError:
         "错误：需要 PyYAML。安装：pip3 install --user pyyaml"
     )
 
-DEFAULT_SRC = "~/.agent/src"
-DEFAULT_MANIFEST = "~/prompt-workspace/manifest.yaml"
-DEFAULT_DIST = "~/prompt-workspace/dist"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config import load_config, path_of
+
+CFG, _ = load_config()
+DEFAULT_SRC = path_of(CFG, "src_dir", "./src")
+DEFAULT_MANIFEST = path_of(CFG, "manifest", "./manifest.yaml")
+DEFAULT_DIST = path_of(CFG, "dist_dir", "./dist")
+# 规则索引里展示的规则目录（原样 ~/ 路径，便于 agent 直接读）
+RULES_DIR_DISPLAY = str(CFG.get("rules_dir") or "rules").rstrip("/")
 
 
 
@@ -47,7 +54,7 @@ def build_route_table(manifest):
     for name, meta in rules.items():
         desc = str(meta.get("desc", "")).strip()
         route = str(meta.get("route", "")).strip()
-        location = "`~/.agent/rules/%s.md`" % name
+        location = "`%s/%s.md`" % (RULES_DIR_DISPLAY, name)
         rows.append((location, desc, route))
     if not rows:
         return ""
@@ -82,10 +89,10 @@ def main():
         description="构建：src 分片 + manifest → dist/AGENTS.full.md。"
                     "退出码 0=正常 1=出错。"
     )
-    parser.add_argument("--src", default=DEFAULT_SRC, help="分片目录（默认 ~/.agent/src）")
+    parser.add_argument("--src", default=DEFAULT_SRC, help="分片目录（默认取部署配置 src_dir，无配置时 ./src）")
     parser.add_argument("--manifest", default=DEFAULT_MANIFEST,
-                        help="manifest 路径（默认 ~/prompt-workspace/manifest.yaml）")
-    parser.add_argument("--dist", default=DEFAULT_DIST, help="产物目录（默认 ~/prompt-workspace/dist）")
+                        help="manifest 路径（默认取部署配置 manifest，无配置时 ./manifest.yaml）")
+    parser.add_argument("--dist", default=DEFAULT_DIST, help="产物目录（默认取部署配置 dist_dir，无配置时 ./dist）")
     args = parser.parse_args()
 
     src_dir = os.path.expanduser(args.src)

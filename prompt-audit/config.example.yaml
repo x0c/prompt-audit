@@ -1,0 +1,31 @@
+# prompt-audit 部署配置模板
+# 路径与外来块定义每人每机不同，脚本不写死任何路径，全部从这里读。
+# 使用：复制本文件到 ~/.config/prompt-audit/config.yaml（或设 PROMPT_AUDIT_CONFIG 环境变量指向它），按本机情况修改。
+
+# 分片与产物（内容工作区）
+src_dir: ~/.prompt/src             # 常驻分片目录
+rules_dir: ~/.prompt/rules         # 按需规则目录（生成规则索引时展示该路径）
+manifest: ~/prompt/manifest.yaml
+dist_dir: ~/prompt/dist            # build 产物目录（完整版 <dist_dir>/AGENTS.full.md）
+
+# 真身与备份（sync 写回目标；各 runtime 的 AGENTS.md 软链到真身）
+true_file: ~/.config/your-sync-tool/AGENTS.md
+backup_dir: ~/.config/your-sync-tool/backups
+
+# 隐私词表（lint 隐私扫描用；缺省用脚本内置示例表）
+privacy_words: ~/prompt/privacy-words.txt
+
+# 外来托管块：sync 时从现有真身原样搬运、逐字节保留；由对应工具自行升级，本 skill 不改内容。
+# 没有的块直接删掉对应条目即可，sync 自动跳过。
+external_blocks:
+  # 标题界定的节（doc-init/doc-compact 按版本号整块替换管理）
+  doc_governance:
+    heading: "## 项目文档管理"
+    separator: "## 附：外部托管区块"   # 节与标记块之间的隔断标题，防升级删除越界吞掉相邻块
+  # begin/end 标记块（各同步/工具按固定模板 upsert），数量不限、按书写序拼接
+  # 示例：某同步工具管理的 mcp 配置块、某知识图谱工具的注入块
+  marker_blocks:
+    - begin: "<!-- your-sync-tool:begin mcp -->"
+      end: "<!-- your-sync-tool:end mcp -->"
+    - begin: "<!-- your-tool:start -->"
+      end: "<!-- your-tool:end -->"

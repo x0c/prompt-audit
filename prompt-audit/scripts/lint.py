@@ -3,13 +3,14 @@
 """提示词体检（lint）：对目标提示词文件做纯确定性检查，零 LLM、零网络。
 
 用法：
-    prompt-audit/scripts/lint.py [目标]        # 目标默认 ~/.config/agentsync/AGENTS.md
-    lint.py ~/prompt-workspace/original/AGENTS.md
-    lint.py ~/.agent/src/                      # 传目录则按文件名序拼接后体检
+    lint.py [目标]        # 目标默认取部署配置 true_file；无配置时必须传参
+    lint.py <目录>/       # 传目录则按文件名序拼接后体检（适合分片目录）
+路径与隐私词表位置由部署配置提供（~/.config/prompt-audit/config.yaml），
+不依赖任何写死的本机路径。
 
 输出：中文体检报告（stdout）。退出码 0=健康，1=有告警。
 
-阈值依据（详见 prompt-workspace/analysis/TOOL_RESEARCH.md 第 3 节）：
+阈值依据：
 - token 阈值 3000：prompt bloat 研究（Goldber et al.，Agentic AI Foundation 引述），
   远低于上下文窗口上限时推理即开始退化。属经验阈值。
 - 规则条数 50：IFScale（arXiv:2507.11538）指令密度退化研究。属经验阈值。
@@ -28,18 +29,23 @@ import unicodedata
 # ---------------------------------------------------------------------------
 
 # 隐私词表：命中即报告出现位置（私有版本属正常，仅提示；公开版命中必须处理）。
-# 优先读 ~/prompt-workspace/privacy-words.txt（每行一个词，可含 # 注释）——
-# 真实词表放个人工作区，不随 skill 目录分发；缺省同内置示例表，大小写不敏感。
+# 优先读部署配置 privacy_words 指向的文件（每行一个词，可含 # 注释）——
+# 真实词表放个人目录，不随 skill 分发；缺省同内置示例表，大小写不敏感。
 _PRIVACY_WORDS_FALLBACK = [
     "my-company",
     "my-username",
 ]
 
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config import load_config, path_of
+
+CFG, _CFG_PATH = load_config()
+
 def _load_privacy_words() -> list[str]:
-    """优先从个人工作区词表文件加载，缺失时退回内置示例表。"""
-    path = os.path.expanduser("~/prompt-workspace/privacy-words.txt")
-    if os.path.isfile(path):
+    """优先从部署配置 privacy_words 指向的词表文件加载，缺失时退回内置示例表。"""
+    path = path_of(CFG, "privacy_words")
+    if path and os.path.isfile(path):
         words = [
             line.strip()
             for line in open(path, encoding="utf-8")
@@ -224,17 +230,22 @@ def main():
     parser.add_argument(
         "target",
         nargs="?",
-        default="~/.config/agentsync/AGENTS.md",
-        help="目标文件或目录（默认 ~/.config/agentsync/AGENTS.md；传 ~/.agent/src/ 可体检分片拼接结果）",
+        default=None,
+        help="目标文件或目录（默认取部署配置 true_file；传分片目录可体检拼接结果）",
     )
     args = parser.parse_args()
 
-    text, sources = load_text(args.target)
+    target = args.target or path_of(CFG, "true_file")
+    if not target:
+        parser.error("缺少目标文件：请传参，或在部署配置（~/.config/prompt-audit/config.yaml，"
+                     "模板见 skill 目录 config.example.yaml）里设 true_file")
+
+    text, sources = load_text(target)
     warnings = 0
     print("=" * 60)
     print("提示词体检报告")
     print("=" * 60)
-    print(f"目标：{os.path.expanduser(args.target)}"
+    print(f"目标：{os.path.expanduser(target)}"
           + (f"（{len(sources)} 个文件按文件名序拼接）" if len(sources) > 1 else ""))
 
     # 1. 长度与 token

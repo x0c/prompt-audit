@@ -9,14 +9,18 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 
 本 skill 管理一份分片化的全局提示词体系：
 
-| 位置 | 角色 |
+**部署配置（先读这条）**：路径与外来块定义每人每机不同，全部由部署配置提供——
+`~/.config/prompt-audit/config.yaml`（可用 `PROMPT_AUDIT_CONFIG` 环境变量改址），模板在本 skill 目录 `config.example.yaml`。首次使用先复制模板并按本机情况修改。下文所有路径均以配置为准，脚本不写死任何本机路径。
+
+| 配置键 | 角色 |
 |---|---|
-| `~/.agent/src/` | 常驻注入区分片（每次会话都生效的规则） |
-| `~/.agent/rules/` | 按需规则（低频规则，靠规则索引按需加载，不常驻上下文） |
-| `~/prompt-workspace/manifest.yaml` | 分片元数据：rules 的 route/consequence（visibility/redact 是发布任务的登记，与治理无关） |
-| `~/prompt-workspace/original/AGENTS.md` | 治理前原件（只读存档，对照用） |
-| `~/prompt-workspace/dist/` | build 产物：AGENTS.full.md（完整版；AGENTS.public.md 由发布脚本另行生成，不属本 skill） |
-| `~/.config/agentsync/AGENTS.md` | 真身文件，各 runtime（pi/claude/codex/opencode）的 AGENTS.md 全是它的软链 |
+| `src_dir` | 常驻注入区分片（每次会话都生效的规则） |
+| `rules_dir` | 按需规则（低频规则，靠规则索引按需加载，不常驻上下文） |
+| `manifest` | 分片元数据：rules 的 desc/route（visibility/redact 是发布任务的登记，与治理无关） |
+| `dist_dir` | build 产物：AGENTS.full.md 完整版（AGENTS.public.md 由发布脚本另行生成，不属本 skill） |
+| `true_file` / `backup_dir` | 真身文件（各 runtime 的 AGENTS.md 软链于此）与写前备份目录 |
+| `privacy_words` | 隐私词表文件（缺省用 lint 内置示例表） |
+| `external_blocks` | 外来托管块定义（见「同步」一节），sync 原样搬运、逐字节保留 |
 
 分片排序规则：**按 manifest `src:` 段的键序拼接**（YAML 映射保序），不依赖文件名、不需要 order 字段。改分片顺序就改 manifest 里的书写顺序。
 
@@ -25,23 +29,23 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 改完分片后、或怀疑提示词膨胀时，运行：
 
 ```bash
-~/.config/agentsync/skills/prompt-audit/scripts/lint.py [目标]
+<本skill目录>/scripts/lint.py [目标]
 ```
 
-目标可以是任意提示词文件，或 `~/.agent/src/` 目录（按文件名序拼接后体检），默认真身。输出六项指标，退出码 0=健康、1=有告警：
+目标可以是任意提示词文件，或分片目录（按文件名序拼接后体检），默认取配置 `true_file`。输出六项指标，退出码 0=健康、1=有告警：
 
 1. **长度 / 估算 token**：超 3000 token 告警（prompt bloat 研究的经验阈值——远低于上下文窗口时推理即退化）
 2. **规则条数**：超 50 条告警（IFScale 指令密度研究：指令越多遵循率越低，且模型偏向更早出现的指令）
 3. **重复检测**：行级重复（≥10 字整行出现 ≥2 次）+ 跨节重复短语
 4. **强调词密度**：「必须/一律/禁止/务必/不得」总次数与次/千字密度，超 1 次/百字告警（经验规则：强调通胀稀释真约束）
 5. **中段埋雷**：三等分后「必须/禁止」密度最高段落在中段则告警（Lost in the Middle：关键信息居中注意力最弱）→ 把硬约束挪到头部或尾部
-6. **隐私词扫描**：报告私有词出现位置（词表优先读 `~/prompt-workspace/privacy-words.txt`，缺省用脚本内置示例表；真实词表放个人工作区，不随 skill 分发）——治理场景用来确认私有词登记完整；发布场景的隐私复检另有流程
+6. **隐私词扫描**：报告私有词出现位置（词表读配置 `privacy_words` 指向的文件，缺省用内置示例表；真实词表放个人目录，不随 skill 分发）——治理场景用来确认私有词登记完整；发布场景的隐私复检另有流程
 
 体检告警的处置纪律：告警必须处置，或给出不适用的结构性理由（如「外来块不归本次治理管辖」）；不许用「固有形态 / 设计如此」类叙述打发——曾把按需规则误内联进公开版，lint 的规则数超标告警被「公开版固有形态」解释糊弄过去，实为真报警。
 
 ## 审计流程（方法论）
 
-对一份混乱的提示词做治理时，按以下流程拆条审计（完整先例见 `~/prompt-workspace/analysis/AUDIT.md`）：
+对一份混乱的提示词做治理时，按以下流程拆条审计（先例建议存放在工作区 `analysis/` 目录，便于复查）：
 
 1. **拆条**：按 `## ` 标题切分到节，节内再按列表项/句子拆到「一条规则」粒度，逐条编号。
 2. **四分类**，每条给出判定和一句理由：
@@ -55,10 +59,10 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
    - **触发判据**：有可识别的触发场景吗？
    - **失真判据**：删掉它，某个可观察行为会退化吗？若行为由另一条规则覆盖，须确认那条规则长期稳定（外来托管块可能被整块替换，不算稳定覆盖）。
    三问全否 → 可删；任一为是 → 不可删。注意粒度：解释性从句、踩坑例子、历史事实先从本体剥离（从句级垃圾走「精简」通道），三问按规则本体作答；三判据只裁决删 vs 留，**不裁决常驻 vs 按需路由**（后者靠触发频率判断，是 token 收益的另一大半）。
-3. **输出决策清单给用户拍板**，格式：按存疑项编号列出，每项给出现状、疑点、2–3 个选项（标注推荐项及理由）。存疑项不擅自处理；用户拍板后记入 `~/prompt-workspace/analysis/DECISIONS.md`。
-4. 拍板后：把保留/合并的规则改写成 `~/.agent/src/` 分片（低频规则进 `~/.agent/rules/`），在 manifest 登记元数据，再走下面的构建与同步。
+3. **输出决策清单给用户拍板**，格式：按存疑项编号列出，每项给出现状、疑点、2–3 个选项（标注推荐项及理由）。存疑项不擅自处理；用户拍板后记入工作区 `analysis/DECISIONS.md`（拍板记录）。
+4. 拍板后：把保留/合并的规则改写成 src 分片（低频规则进 rules 目录），在 manifest 登记元数据，再走下面的构建与同步。
 
-注：对外发布公开版是独立任务（脚本 `~/prompt-workspace/scripts/make_public.py`，含隐私词表与脱敏），不属于本 skill。
+注：对外发布公开版是独立任务（发布脚本属个人工作区，含隐私词表与脱敏），不属于本 skill。
 
 ## 改写与压缩（拍板后执行）
 
@@ -73,33 +77,32 @@ description: 管理 AI Agent 全局提示词（AGENTS.md）的元认知 skill：
 - **元话语与后果预告不入产物**：治理者视角的术语和论证（「按需」「路由」）不写进面向 agent 的文本；也不写「不读的后果」——后果预告给模型开了权衡窗口（后果可接受 → 不读），反而稀释「必读」的无条件性。
 - **产物忠实部署形态**：公开版/示例等对外产物不得为「自包含」改变架构——按需规则绝不内联进会被 runtime 全量加载的主文件，否则读者照学错误形态，按需加载就名存实亡。
 - **语义自检**：每条合并/压缩过的规则，逐条对照改写前后确认约束无损，产出对照表供用户复查。
-- 改完必跑：`build.py` 重建 → `lint.py ~/.agent/src/` 复检，指标应优于改前。
+- 改完必跑：`build.py` 重建 → `lint.py <src_dir>` 复检，指标应优于改前。
 
 ## 构建（build）
 
 分片或 manifest 改动后，重新生成产物：
 
 ```bash
-~/.config/agentsync/skills/prompt-audit/scripts/build.py
+<本skill目录>/scripts/build.py
 ```
 
-- **完整版** `dist/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「规则索引」（从 manifest rules 段的 route 生成，指向 `~/.agent/rules/` 文件）
+- **完整版** `<dist_dir>/AGENTS.full.md`：全部 src 分片按 manifest 键序拼接，顶部生成「规则索引」（从 manifest rules 段的 route 生成，指向配置 `rules_dir` 下的文件）
 
 ## 同步（sync）
 
 build 通过后，把完整版写回真身：
 
 ```bash
-~/.config/agentsync/skills/prompt-audit/scripts/sync.py --dry-run   # 必须先预览
-~/.config/agentsync/skills/prompt-audit/scripts/sync.py --confirm   # 确认 diff 后才真写
+<本skill目录>/scripts/sync.py --dry-run   # 必须先预览
+<本skill目录>/scripts/sync.py --confirm   # 确认 diff 后才真写
 ```
 
-不加参数会报错强制 dry-run 先行。安全约束（机制依据见 `~/prompt-workspace/analysis/INJECTION_MECHANISM.md`）：
+不加参数会报错强制 dry-run 先行；无部署配置时直接报错引导（真身路径不可猜测）。安全约束：
 
-- 只写真身 `~/.config/agentsync/AGENTS.md`，软链自动生效
-- 写前强制备份到 `~/.config/agentsync/backups/AGENTS.md.<时间戳>`
-- 两个外来块从现有真身**原样搬运、逐字节保留**：「项目文档管理」节（doc-init/doc-compact 的脚本按版本号整块替换管理）和 `<!-- agentsync:begin mcp -->` 块（agentsync 工具按固定模板 upsert）
-- 两个外来块之间插入隔断标题 `## 附：外部托管区块`：doc-governance 升级时删除边界是「下一个 `## ` 标题」，没有隔断会把紧随其后的 agentsync begin 标记一起吞掉
+- 只写真身（配置 `true_file`），软链自动生效；写前强制备份到配置 `backup_dir`
+- 外来托管块从现有真身**原样搬运、逐字节保留**，定义全部在配置 `external_blocks`：标题界定的节（如 doc-governance，管理工具按版本号整块替换）+ 任意多个 begin/end 标记块（各同步工具按固定模板 upsert）。配置里没登记的真身内容会在同步时丢失——发现真身出现未知托管块，先登记进配置再同步
+- 标题块与标记块之间插入隔断标题（配置 `doc_governance.separator`）：块升级的删除边界常是「下一个 `## ` 标题」，没有隔断会把紧随其后的标记块一起吞掉
 - 原子写入（临时文件 + mv），写后逐字节校验（外来块保留 + 全文与预期一致），校验失败退出码 1 并提示备份位置
 - 脚本绝不主动执行 insert_doc_governance.py，绝不修改外来块内容
 
@@ -109,7 +112,7 @@ build 通过后，把完整版写回真身：
 
 1. `lint.py <现状文件>`：对现有提示词体检，确认问题（token 超标/重复/强调通胀）
 2. 审计流程：拆条 → 四分类（含三问删留判据）→ 输出决策清单给用户拍板
-3. 按拍板结果改 `~/.agent/src/` 分片和 `~/.agent/rules/` 按需规则，登记 manifest
+3. 按拍板结果改 src 分片和 rules 按需规则，登记 manifest
 4. `build.py`：生成 dist 两产物
-5. `lint.py ~/.agent/src/`：对新分片复检，指标应显著优于原件
+5. `lint.py <src_dir>`：对新分片复检，指标应显著优于原件
 6. `sync.py --dry-run` 预览 → 用户确认 → `sync.py --confirm` 写回真身
