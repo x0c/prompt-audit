@@ -56,7 +56,7 @@ Sharding + routing is half the win: low-frequency rules leave the resident conte
 
 Safety: `sync.py` refuses to run without `--dry-run` first, backs up before writing, carries third-party managed blocks byte-for-byte (doc-governance sections, tool-managed markers), and verifies the result hash after writing.
 
-Paths in `SKILL.md` describe the author's local layout — adapt them to your own.
+No paths are hardcoded anywhere: a per-machine deployment config (`~/.config/prompt-audit/config.yaml`, template included) declares your shard directories, manifest, dist output, true-file target, backup dir, privacy wordlist, and **external managed blocks** — third-party sections (doc-governance templates, tool-managed marker blocks) that sync carries byte-for-byte. Anything the config doesn't know about gets flagged before it's lost.
 
 ## The example
 
@@ -75,4 +75,4 @@ Paths in `SKILL.md` describe the author's local layout — adapt them to your ow
 - **分片 + 路由架构**：常驻分片与按需规则分离，低频规则彻底移出常驻上下文
 - **手术级同步**：强制 dry-run 先行、写前备份、外来托管块逐字节保留、写后哈希校验
 
-`example/AGENTS.public.md` 是治理后的真实全局规范（脱敏公开版）：顶部路由表指向外部 `example/rules/*.md` 独立文件——按需规则完全不进 AGENTS.md 主文件（runtime 每次会话全量加载它），仅在路由命中时才读取。`SKILL.md` 中的路径是作者本机布局，按需改成你自己的。
+`example/AGENTS.public.md` 是治理后的真实全局规范（脱敏公开版）：顶部路由表指向外部 `example/rules/*.md` 独立文件——按需规则完全不进 AGENTS.md 主文件（runtime 每次会话全量加载它），仅在路由命中时才读取。脚本不写死任何路径：每机一份部署配置（`~/.config/prompt-audit/config.yaml`，含模板）声明分片目录、manifest、产物目录、真身、备份、隐私词表与外来托管块定义（第三方管理的节/标记块，sync 逐字节搬运）。配置没登记的真身内容，同步前会被标记出来防止丢失。
